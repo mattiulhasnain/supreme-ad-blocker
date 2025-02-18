@@ -18,34 +18,27 @@ chrome.storage.local.get(['filters'], (result) => {
   }
 });
 
-// Listen for web requests
-chrome.webRequest.onBeforeRequest.addListener(
-  (details) => {
-    const url = details.url;
-    
-    // Check if URL matches any filter
-    for (const filter of filters) {
-      const regex = new RegExp(filter);
-      if (regex.test(url)) {
-        return { cancel: true };
-      }
+// Setup declarativeNetRequest rules
+chrome.declarativeNetRequest.updateDynamicRules({
+  removeRuleIds: filters.map((_, index) => index + 1),
+  addRules: filters.map((filter, index) => ({
+    id: index + 1,
+    priority: 1,
+    action: { type: 'block' },
+    condition: { 
+      urlFilter: filter,
+      resourceTypes: ['main_frame', 'sub_frame', 'script', 'image', 'stylesheet', 'object', 'xmlhttprequest']
     }
-  },
-  { urls: ["<all_urls>"] },
-  ["blocking"]
-);
+  }))
+});
 
 // Track blocked requests
 let blockedCount = 0;
 
-chrome.webRequest.onBeforeRequest.addListener(
-  (details) => {
-    blockedCount++;
-    chrome.storage.local.set({ blockedCount });
-  },
-  { urls: ["<all_urls>"] },
-  ["blocking"]
-);
+chrome.declarativeNetRequest.onRuleMatchedDebug.addListener((details) => {
+  blockedCount++;
+  chrome.storage.local.set({ blockedCount });
+});
 
 // Handle messages from popup
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
